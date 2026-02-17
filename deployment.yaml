@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: btc-exporter
+  namespace: finance
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: btc-exporter
+  template:
+    metadata:
+      labels:
+        app: btc-exporter
+    spec:
+      imagePullSecrets:
+        - name: registry-secret
+      containers:
+        - name: btc-exporter
+          image: tonnytg/btc-exporter:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+
