@@ -10,20 +10,24 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+type CoinPrice struct {
+	USD float64 `json:"usd"`
+	BRL float64 `json:"brl"`
+}
+
 type Response struct {
-	Bitcoin struct {
-		USD float64 `json:"usd"`
-		BRL float64 `json:"brl"`
-	} `json:"bitcoin"`
+	Bitcoin  CoinPrice `json:"bitcoin"`
+	Ethereum CoinPrice `json:"ethereum"`
+	Solana   CoinPrice `json:"solana"`
 }
 
 var (
-	btcPrice = prometheus.NewGaugeVec(
+	cryptoPrice = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
-			Name: "btc_price",
-			Help: "Bitcoin price by currency",
+			Name: "crypto_price",
+			Help: "Crypto price by coin and currency",
 		},
-		[]string{"currency"},
+		[]string{"coin", "currency"},
 	)
 
 	httpClient = &http.Client{
@@ -31,10 +35,12 @@ var (
 	}
 )
 
-func fetchBTC() {
-	resp, err := httpClient.Get("https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,brl")
+func fetchPrices() {
+	url := "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd,brl"
+
+	resp, err := httpClient.Get(url)
 	if err != nil {
-		log.Println("error fetching BTC:", err)
+		log.Println("error fetching prices:", err)
 		return
 	}
 	defer resp.Body.Close()
@@ -45,23 +51,31 @@ func fetchBTC() {
 		return
 	}
 
-	btcPrice.WithLabelValues("usd").Set(data.Bitcoin.USD)
-	btcPrice.WithLabelValues("brl").Set(data.Bitcoin.BRL)
+	// BTC
+	cryptoPrice.WithLabelValues("bitcoin", "usd").Set(data.Bitcoin.USD)
+	cryptoPrice.WithLabelValues("bitcoin", "brl").Set(data.Bitcoin.BRL)
+
+	// ETH
+	cryptoPrice.WithLabelValues("ethereum", "usd").Set(data.Ethereum.USD)
+	cryptoPrice.WithLabelValues("ethereum", "brl").Set(data.Ethereum.BRL)
+
+	// SOL
+	cryptoPrice.WithLabelValues("solana", "usd").Set(data.Solana.USD)
+	cryptoPrice.WithLabelValues("solana", "brl").Set(data.Solana.BRL)
 }
 
 func main() {
-	prometheus.MustRegister(btcPrice)
+	prometheus.MustRegister(cryptoPrice)
 
 	go func() {
 		for {
-			fetchBTC()
+			fetchPrices()
 			time.Sleep(30 * time.Second)
 		}
 	}()
 
 	http.Handle("/metrics", promhttp.Handler())
 
-	log.Println("BTC exporter running on :8081")
+	log.Println("Crypto exporter running on :8081")
 	log.Fatal(http.ListenAndServe(":8081", nil))
 }
-
